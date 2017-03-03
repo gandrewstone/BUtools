@@ -1,0 +1,6 @@
+[submodule "pythonbitcoinlib"]
+	path = pythonbitcoinlib
+	url = https://github.com/gandrewstone/python-bitcoinlib.git
+[submodule "btccli/xmlterm"]
+	path = btccli/xmlterm
+	url = https://github.com/gandrewstone/xmlterm.git
