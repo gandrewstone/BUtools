@@ -242,8 +242,8 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
   inp = []
   amount = Decimal(0)
   for tx in frm:
-#      pdb.set_trace()
-      if tx["spendable"] is True:
+      # pdb.set_trace()
+      if tx["spendable"] is True and tx["confirmations"] > 0:
         inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
         amount += tx["amount"]
 
