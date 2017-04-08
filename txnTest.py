@@ -39,7 +39,7 @@ def main(op, params=None):
   except ValueError as v:
     print str(v)
     pdb.set_trace()
-    
+
   addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
   change = [cnxn.getrawchangeaddress()]
   #wallet = cnxn._call("listreceivedbyaddress")
@@ -57,13 +57,13 @@ def main(op, params=None):
       repeat = int(params[1])
     else:
       repeat = 1
-    
+
     wallet = cnxn.listunspent()
     # print "This wallet has %d unspent outputs.  Joining the %d at offset %d." % (len(wallet),amt, offset)
     # consolidate(wallet[offset:offset+amt],cnxn.getnewaddress(), cnxn)
     print ("This wallet has %d unspent outputs.  Joining %d, %d times." % (len(wallet),amt, repeat))
     offset = 100
-    for cnt in range(0,repeat): 
+    for cnt in range(0,repeat):
       print (cnt)
       bigAmt = wallet[0]
       itr = 0
@@ -71,7 +71,7 @@ def main(op, params=None):
       for tx in wallet:  # Find a larger utxo that will pay for a lot of dust
         if tx["spendable"] is True and bigAmt["amount"] < tx["amount"]:
           bigAmt = tx
-          idx = itr 
+          idx = itr
         itr += 1
       del wallet[idx]
       print (str(bigAmt))
@@ -105,7 +105,7 @@ def main(op, params=None):
             cnxn = bitcoin.rpc.Proxy()
             break
           except:
-            pass        
+            pass
 
   if op=="sweep":
     wallet = cnxn.listunspent()
@@ -116,7 +116,7 @@ def main(op, params=None):
         break
       tx = wallet[0]
       del wallet[0]
-      
+
       if tx["spendable"] is True and tx["amount"] < 100000 and tx["confirmations"] > 0:
         print (str(tx))
         spend.append(tx)
@@ -125,7 +125,7 @@ def main(op, params=None):
       consolidate(spend,cnxn.getnewaddress(), cnxn,5000*len(spend))
     else:
       print ("there is nothing to sweep")
-    
+
   if op=="split":
     if len(params):
       nSplits = int(params[0])
@@ -135,7 +135,7 @@ def main(op, params=None):
       fee = int(params[1])
     else:
       fee = 9000
-      
+
     wallet = cnxn.listunspent()
     j = 0
     for w in wallet:
@@ -192,7 +192,7 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False):
     except bitcoin.rpc.JSONRPCError as e:
       if "Fee is larger" in str(e) and randAmt:
         pass
-      else: raise 
+      else: raise
     except bitcoin.rpc.JSONRPCError as e:
       if gen and i > lastGenerate:  # Out of TxOuts in the wallet so commit these txn
         generate()
@@ -205,7 +205,7 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False):
       #print
       pass
 
-  
+
 def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
   inp = []
   getcontext().prec = 8
@@ -241,7 +241,6 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
       cnxn._call("sendrawtransaction", signedtxn["hex"])
   except bitcoin.rpc.JSONRPCError as e:
     print (str(e))
-    
 
 
 def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
@@ -252,8 +251,8 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
   inp = []
   amount = Decimal(0)
   for tx in frm:
-#      pdb.set_trace()
-      if tx["spendable"] is True:
+      # pdb.set_trace()
+      if tx["spendable"] is True and tx["confirmations"] > 0:
         inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
         amount += tx["amount"]
 
@@ -269,7 +268,7 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
   signedtxn = cnxn._call("signrawtransaction",str(txn))
   if signedtxn["complete"]:
     cnxn._call("sendrawtransaction", signedtxn["hex"])
- 
+
 def consolidate2(frm, toAddr, cnxn):
   #out = bitcoin.core.CTxOut(frm["amount"],toAddr)
   #script = bitcoin.core.CScript()
@@ -293,9 +292,9 @@ def consolidate2(frm, toAddr, cnxn):
   out = { str(toAddr): str(frm["amount"]) }
   #txn = bitcoin.core.CMutableTransaction(inp,[out])
   txn = cnxn._call("createrawtransaction",inp, out)
-  signedtxn = cnxn._call("signrawtransaction",str(txn))  
+  signedtxn = cnxn._call("signrawtransaction",str(txn))
   cnxn.sendrawtransaction(signedtxn)
- 
+
 
 def consolidate2(frm, toAddr, cnxn):
   pdb.set_trace()
@@ -319,7 +318,7 @@ def consolidate2(frm, toAddr, cnxn):
   out = bitcoin.core.CMutableTxOut(frm["amount"],toAddr.to_scriptPubKey())
   txn = bitcoin.core.CMutableTransaction(inp,[out])
   cnxn.sendrawtransaction(txn)
-    
+
 
 # python txnTest.py nol split
 #  645  python txnTest.py nol spam
@@ -333,13 +332,13 @@ if __name__ == "__main__":
       print("./txnTest.py <network> <operation> [operation specific arguments]")
       print('  network can be: "testnet", "regtest", "nol", "main"')
       print('  operation can be: "split", "join", "spam", "unspent", "info"')
-      print("    split: create more UTXOs.") 
+      print("    split: create more UTXOs.")
       print("      parameters: [nSplits: takes every UTXO that has sufficient balance and splits it into this many more UTXOs, default 25]")
       print("      example: ./txnTest.py nol split 10")
-      print("    join: consolidate UTXOs.") 
+      print("    join: consolidate UTXOs.")
       print("      parameters: <nJoin: take this many UTXOs and join them into 1>  <nRepeat: repeat the join this many times>")
       print("      example that joins 50 UTXOs into one output 2 times: ./txnTest.py nol join 50 2")
-      print("    spam: generate a lot of transactions, by paying to myself.") 
+      print("    spam: generate a lot of transactions, by paying to myself.")
       print("      example: ./txnTest.py nol spam")
       sys.exit(1)
     if sys.argv[idx] == "testnet":
