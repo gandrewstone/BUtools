@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import sys, pdb
 import bitcoin
 import bitcoin.rpc
@@ -29,14 +29,24 @@ def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy()
 
-  print cnxn.getbalance()
+  try:
+    print (cnxn.getbalance())
+  except ValueError as v:
+    print str(v)
+    pdb.set_trace()
+  try:
+    print (cnxn.getbalance())
+  except ValueError as v:
+    print str(v)
+    pdb.set_trace()
+    
   addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
   change = [cnxn.getrawchangeaddress()]
   #wallet = cnxn._call("listreceivedbyaddress")
   #wallet = cnxn._call("listunspent")
   if op=="unspent":
     wallet = cnxn.listunspent()
-    print "This wallet has %d unspent outputs." % len(wallet)
+    print ("This wallet has %d unspent outputs." % len(wallet))
 
   if op=="join":
     if len(params):
@@ -51,10 +61,10 @@ def main(op, params=None):
     wallet = cnxn.listunspent()
     # print "This wallet has %d unspent outputs.  Joining the %d at offset %d." % (len(wallet),amt, offset)
     # consolidate(wallet[offset:offset+amt],cnxn.getnewaddress(), cnxn)
-    print "This wallet has %d unspent outputs.  Joining %d, %d times." % (len(wallet),amt, repeat)
+    print ("This wallet has %d unspent outputs.  Joining %d, %d times." % (len(wallet),amt, repeat))
     offset = 100
     for cnt in range(0,repeat): 
-      print cnt
+      print (cnt)
       bigAmt = wallet[0]
       itr = 0
       idx = 0
@@ -64,7 +74,7 @@ def main(op, params=None):
           idx = itr 
         itr += 1
       del wallet[idx]
-      print str(bigAmt)
+      print (str(bigAmt))
       consolidate(wallet[offset:offset+amt] + [bigAmt],addrs[0], cnxn)
       del wallet[offset:offset+amt] # delete all the entries I just used
       offset+=amt
@@ -84,7 +94,7 @@ def main(op, params=None):
       try:
         spamTx(cnxn,50000,addrs, amt,False)
       except bitcoin.rpc.JSONRPCError as e:
-        print "Out of addresses.  Sleeping"
+        print ("Out of addresses.  Sleeping")
         time.sleep(60)
       except httplib.BadStatusLine as e:
         cnxn = bitcoin.rpc.Proxy()
@@ -108,13 +118,13 @@ def main(op, params=None):
       del wallet[0]
       
       if tx["spendable"] is True and tx["amount"] < 100000 and tx["confirmations"] > 0:
-        print str(tx)
+        print (str(tx))
         spend.append(tx)
 
     if spend:
       consolidate(spend,cnxn.getnewaddress(), cnxn,5000*len(spend))
     else:
-      print "there is nothing to sweep"
+      print ("there is nothing to sweep")
     
   if op=="split":
     if len(params):
@@ -134,20 +144,20 @@ def main(op, params=None):
         addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
         if 1: # try:
           split([w],addrs, cnxn, fee)
-          print "split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs))
+          print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
         else:  # :except bitcoin.rpc.JSONRPCError as e:
-          print "\n%d: Exception %s" % (j,str(e))
+          print ("\n%d: Exception %s" % (j,str(e)))
           pdb.set_trace()
       else:
-        print "address has only %d satoshi" % w['amount']
+        print ("address has only %d satoshi" % w['amount'])
       # else: print "Split: %d" % j
 
   if op=="info":
     blkid = cnxn.getbestblockhash()
     blk = cnxn.getblock(blkid)
     txn = blk.vtx[0]
-    print txn.vin
-    print txn.vout
+    print (txn.vin)
+    print (txn.vout)
   # cnxn.sendrawtransaction(txn)  # u'transaction already in block chain'  code: -27
   #pdb.set_trace()
 
@@ -157,7 +167,7 @@ def generate(amt=1,cnxn=None):
 
 def spamTx(bu, numTx,addrp,amt = None,gen=False):
   addr = addrp
-  print "SPAM"
+  print ("SPAM")
   lastGenerate = -1
   start = time.time()
   if amt == None:
@@ -168,15 +178,15 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False):
       end = time.time()
       interval = end - start
       start = end
-      print "issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval)
+      print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
     if addrp is None:
-      print "creating new address"
+      print ("creating new address")
       addr = bu._call('getnewaddress')
     if type(addrp) is types.ListType:
       addr = addrp[i%len(addrp)]
     if randAmt:
       amt = random.randint(100*uBTC, BTC/2)
-    print "Count ", i, "Send %d to %s" % (amt, str(addr))
+    print ("Count ", i, "Send %d to %s" % (amt, str(addr)))
     try:
       bu.sendtoaddress(addr,amt)
     except bitcoin.rpc.JSONRPCError as e:
@@ -186,10 +196,10 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False):
     except bitcoin.rpc.JSONRPCError as e:
       if gen and i > lastGenerate:  # Out of TxOuts in the wallet so commit these txn
         generate()
-        print "\nGenerated at count %d.  Interval %d" % (i, i-lastGenerate)
+        print ("\nGenerated at count %d.  Interval %d" % (i, i-lastGenerate))
         lastGenerate = i
       else:
-        print "\n%d: Exception %s" % (i,str(e))
+        print ("\n%d: Exception %s" % (i,str(e)))
         raise
     finally:
       #print
@@ -208,7 +218,7 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
   outp = {} # = { str(toAddr): str((amount-txfee)/BTC) }
   getcontext().prec = 8
   amtPer = (Decimal(amount-txfee)/len(toAddrs)).to_integral_value()
-  print "amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee
+  print ("amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee)
 
   for a in toAddrs[0:-1]:
     if PerfectFractions:
@@ -218,7 +228,7 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
 
   a = toAddrs[-1]
   amtPer = (amount - ((len(toAddrs)-1)*amtPer)) - txfee
-  print "final amt: ", amtPer
+  print ("final amt: ", amtPer)
   if PerfectFractions:
       outp[str(a)] = str(amtPer/BTC)
   else:
@@ -229,8 +239,8 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
     signedtxn = cnxn._call("signrawtransaction",str(txn))
     if signedtxn["complete"]:
       cnxn._call("sendrawtransaction", signedtxn["hex"])
-  except bitcoin.rpc.JSONRPCError, e:
-    print str(e)
+  except bitcoin.rpc.JSONRPCError as e:
+    print (str(e))
     
 
 
@@ -268,7 +278,7 @@ def consolidate2(frm, toAddr, cnxn):
   inp = []
   for tx in frm["txids"]:
     txinfo = cnxn.gettransaction(tx)
-    print txinfo
+    print (txinfo)
     vout = None
     for d in txinfo["details"]:
       if d["address"] == frm["address"]:
@@ -296,7 +306,7 @@ def consolidate2(frm, toAddr, cnxn):
   inp = []
   for tx in frm["txids"]:
     txinfo = cnxn.gettransaction(tx)
-    print txinfo
+    print (txinfo)
     vout = None
     for d in txinfo["details"]:
       if d["address"] == frm["address"]:
