@@ -10,6 +10,11 @@
 (setq gas-cs-end-regexp ">>.$")
 (setq gas-cs-menu-name "cscope")
 
+(defun full-dir-cleanup(base)
+  (if (string= "/" (substring base -1 nil))
+                      (substring base 0 -1)
+                    base))
+
 (defun gas-filter (condp lst)
   (princ (car lst))
      (delq nil
@@ -57,12 +62,14 @@
     (tq-enqueue q ""  gas-cs-end-regexp  q 'gasCsReady)
 ))
 
+
 (defun cs (base)
   "start up cscope"
   (interactive "Dproject base: ")
 ;  (princ (concat base "\n"))
-  (setq csProjDir base)
-  (if (string= "/" (substring base -1 -1))
+  (setq csProjDir (full-dir-cleanup base))
+
+  (if (string= "/" (substring base -1 nil))
       (setq gasCsExec (concat "cscope -d -R -l -q -f " base "cscope.out" ))
       (setq gasCsExec (concat "cscope -d -R -l -q -f " base "/cscope.out" ))
       )
@@ -75,13 +82,32 @@
 ;;  (setq default-directory csProjDir)
   (interactive "Dproject base: ")
 ;  (princ (concat base "\n"))
-  (setq csProjDir base)
-  (if (string= "/" (substring base -1 -1))
-      (setq gasCsExecRecalc (concat "cscope -R -l -q -s " base " -f " base "cscope.out" ))
-      (setq gasCsExecRecalc (concat "cscope -R -l -q -s " base "/ -f " base "/cscope.out" ))
-      )
+  (setq csProjDir (full-dir-cleanup base))
+
+;  (if (string= "/" (substring base -1 nil))
+;      (setq gasCsExecRecalc (concat "cscope -R -l -q -s " base " -f " base "cscope.out" ))
+;      (setq gasCsExecRecalc (concat "cscope -R -l -q -s " base "/ -f " base "/cscope.out" ))
+;      )
+
+  (setq gasCsExecRecalc (concat "cscope -R -l -q -s " csProjDir "/ -f " csProjDir "/cscope.out" ))
 
   (gasCsStart gasCsExecRecalc)
+)
+
+(defun cs-py-recalc (base)
+  "recalculate cscope index"
+  (interactive "Dpython project base: ")
+;  (princ (concat base "\n"))
+  (setq csProjDir (full-dir-cleanup base))
+
+  (setq gasCsExecRecalc (concat "(cd " base "; pycscope -R)"))
+
+;  (if (string= "/" (substring base -1 nil))
+;      (setq gasCsExec (concat gasCsExecRecalc "; cscope -d -R -l -q -f " base "cscope.out" ))
+;      (setq gasCsExec (concat gasCsExecRecalc "; cscope -d -R -l -q -f " base "/cscope.out" ))
+;      )
+  (setq gasCsExec (concat gasCsExecRecalc "; cscope -d -R -l -q -f " csProjDir "/cscope.out" ))
+  (gasCsStart gasCsExec)
 )
 
 
@@ -143,18 +169,24 @@
     (BsChoose)
 )
 
+(defun gas-expand-path(item)
+  (if (string-prefix-p "./" (car item))
+    (cons (concat csProjDir (substring (car item) 1 nil)) (cdr item))
+    item)
+  )
+
 (defun fullpath-p(item)
-  (string-prefix-p "/" (car item))
+  (or (string-prefix-p "/" (car item)) (string-prefix-p "./" (car item)))
   )
 
 (defun gas-cs-parse(cookie answer why)
-   (princ
-     (format "gas-cs-parse Process ret: %s %s" answer why))
-;   (setq gas-cs-temp answer)
+;   (princ
+;     (format "gas-cs-parse Process ret: %s %s" answer why))
    (let* ((resp (split-string answer "\n"))
 ;                   V remove last elem V   V break up each word V                 V skip first elem (which is "cscope N lines")
           (parsed (reverse (cdr (reverse (mapcar '(lambda (x) (split-string x)) (cdr resp))))))
-          (filtered (gas-filter 'fullpath-p parsed))
+          (pathExpanded (mapcar 'gas-expand-path parsed))
+          (filtered (gas-filter 'fullpath-p pathExpanded))
           )
      (if filtered (gas-cs-show-menu filtered why) (princ "Nothing Found"))
 ))

@@ -15,8 +15,6 @@
 (setq use-clang 1)
 (setq use-cscope 1)               ;; Actually cscope will not work on NT
 
-(setq nix-emacs-env-path "~/elisp")
-
 ;; C flags
 (setq compile-command "make -j11 V=1")
 
@@ -120,10 +118,8 @@
 ;; BASIC EMACS CONFIGURATION COMPLETE
 
 ;; Set up the emacs load path
-(if cfg-nt (setq emacs-env-path nt-emacs-env-path))
-(if (or cfg-solaris cfg-linux) (setq emacs-env-path nix-emacs-env-path))
+(setq emacs-env-path (file-name-directory load-file-name))
 (add-to-list 'load-path emacs-env-path)
-(if (or cfg-solaris cfg-linux) (add-to-list 'load-path "~/"))
 
 
 ;; LANGUAGES

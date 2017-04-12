@@ -3,6 +3,8 @@
 
    ```bash
    sudo apt-get install git-el clang-format-3.8 cscope
+   sudo apt-get install python3-pip
+   sudo pip3 install pycscope
    ```
 2. copy this directory ("elisp") into your home directory
 3. edit your .emacs file, adding:
@@ -63,7 +65,9 @@ end and home keys are to the line, not the file
 
 |   |   |
 |---|---|
-|**Ctrl-q q**| recalculate cscope tags|
+|**Ctrl-q r**| start cscope & recalculate cscope tags C++ projects|
+|**Ctrl-q p**| start cscope & recalculate cscope tags python projects|
+|**Ctrl-q q**| start cscope using existing index files|
 |**Ctrl-q s**| cscope find symbol|
 |**Ctrl-q d**| cscope find definition|
 |**Ctrl-q f**| cscope find file|
