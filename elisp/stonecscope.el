@@ -16,10 +16,9 @@
                     base))
 
 (defun gas-filter (condp lst)
-  (princ (car lst))
-     (delq nil
-           (mapcar (lambda (x) (and (funcall condp x) x)) lst))
-     )
+  (delq nil
+        (mapcar (lambda (x) (and (funcall condp x) x)) lst))
+)
 
 (defvar gasCsTq nil)
 
@@ -262,7 +261,7 @@
   (interactive (gas-cs-interactive "Sym: " nil))
   (BsSetTgtWind (selected-window))
   (if (boundp 'gasCsp)
-   (tq-enqueue gasCsTq (concat "0" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "References to symbol %s.\n" sym)))
+    (tq-enqueue gasCsTq (concat "0" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "References to symbol %s.\n" sym)))
     (princ gasErrCsNotStarted))
 )
 
@@ -271,7 +270,7 @@
   (interactive (gas-cs-interactive "Def: " nil))
   (BsSetTgtWind (selected-window))
   (if (boundp 'gasCsp)
-   (tq-enqueue gasCsTq (concat "1" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "Global definitions of %s.\n" sym)) )
+    (tq-enqueue gasCsTq (concat "1" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "Global definitions of %s.\n" sym)) )
     (princ gasErrCsNotStarted))
 )
 
@@ -280,7 +279,7 @@
    (interactive (gas-cs-interactive "Function: " nil))
   (BsSetTgtWind (selected-window))
   (if (boundp 'gasCsp)
-     (tq-enqueue gasCsTq (concat "2" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "Called by %s.\n" sym)))
+    (tq-enqueue gasCsTq (concat "2" sym "\n") gas-cs-end-regexp  nil (gas-cs-parse-c (format "Called by %s.\n" sym)))
     (princ gasErrCsNotStarted))
 )
 

@@ -1,6 +1,16 @@
+(load "zoom-frm.el")
+
 (define-key text-mode-map "\M-s" 'isearch-forward)             ;; ESC s
 (define-key text-mode-map "\C-i" 'tab-to-tab-stop)             ;; C-i
 (define-key text-mode-map "\M-\C-i" 'indent-relative)          ;; M-C-i
+
+(global-set-key (kbd "C-+") 'text-scale-increase)
+(global-set-key (kbd "C-=") 'text-scale-increase)
+(global-set-key (kbd "C--") 'text-scale-decrease)
+(global-set-key (kbd "s-+") '(lambda() (interactive) (zoom-all-frames-in)))
+(global-set-key (kbd "s-=") '(lambda() (interactive) (zoom-all-frames-in)))
+(global-set-key (kbd "s--") '(lambda() (interactive) (zoom-all-frames-out)))
+
 
 (defun gas-buffer-file-list (lst)
   (if lst
@@ -66,37 +76,57 @@
 ;; python stuff
 
 (setq message-log-max 10000)
+(setq py-directory nil)
+(setq py-first-line nil)
 
 (defun py-gas-run()
   "start a new python shell, doing import pdb; import <filename-of-current-buffer>"
   (interactive)
-  (let* ((file (buffer-file-name (current-buffer)))
-         (file-name (file-name-nondirectory (file-name-sans-extension (if (local-variable-p 'py-file-name)
-                          (buffer-local-value 'py-file-name (current-buffer)) file)
-                      )))
-         (directory (file-name-directory (if (local-variable-p 'py-file-name)
-                          (buffer-local-value 'py-file-name (current-buffer)) file)))
-         )
+  (message "1")
+  ; set the python process vars to this buffer if its a python file
+  ;; (let ((file-buffer (if (get-buffer-process (current-buffer)) nil t))  ; true if this buffer is a file, false if its python
+  (let ((file-buffer (if (buffer-file-name (current-buffer)) t nil))  ; true if this buffer is a file, false if its python
+        )
+    (message "1.1")
+    (if file-buffer
+        (let* ((file (buffer-file-name (current-buffer)))
+               (tmp (message "1.2"))
+               (file-name (file-name-nondirectory (file-name-sans-extension file)))
+               (directory (file-name-directory  file)))
+          (message (concat "File name is: " file))
+          (setq py-directory directory)
+          (setq py-first-line (concat "import pdb ; import " file-name "; " file-name ".Test()"))
+          )))
+  (message "2")
+  ; kill the old python process
+  (if (get-buffer "*Python*")
+        (let ( (py-process (get-buffer-process "*Python*")))
+          (if py-process (kill-process py-process)))
+    nil)
 
-    (if (get-buffer "*Python*") (progn
-                                  (set-buffer "*Python*")
-                                  (set-buffer-modified-p nil)
-                                  (set-process-query-on-exit-flag (get-buffer-process "*Python*") nil)
-                                  (kill-buffer "*Python*"))
-      nil)
+  ; wait for python process to be dead
+  (sit-for 1)
+  (if py-directory (cd py-directory))
+  (message "3")
+  ; run python
+  (if (get-buffer "*Python*")
+      (progn
+        (pop-to-buffer (get-buffer "*Python*"))
+        (run-python py-python-command nil))
 
-    (sit-for 1)
-    (cd directory)
-    (python-switch-to-python "")
+    (progn
+  (if (fboundp 'python-switch-to-python)
+        (python-switch-to-python "")
+    (pop-to-buffer (process-buffer (python-shell-get-or-create-process py-python-command nil)) t))
+  ))
 
-    (let* (
-           (ttt (message "File name is: " file))
-           (buf  (get-buffer "*Python*"))
-           )
-      (set-buffer buf)
-      (set (make-local-variable 'py-file-name) file)
-      (insert "import pdb ; import " file-name "; " file-name ".Test()" )
-      )))
+  (goto-char (point-max)) ; go to the buffer's end
+
+  (let ((buf  (get-buffer "*Python*")))
+    (set-buffer buf)
+    (if py-first-line (insert py-first-line))
+    )
+  )
 
 
 (defun py-gas-run-str(str)
@@ -113,6 +143,7 @@
         (insert str )
   ))
 
+(global-set-key "\M-p" '(lambda() (interactive) (pop-to-buffer (process-buffer (python-shell-get-or-create-process py-python-command nil)) t)))
 ;; end python stuff
 
 (global-unset-key '[f2])
