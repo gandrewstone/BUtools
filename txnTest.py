@@ -138,10 +138,10 @@ def main(op, params=None):
 
     wallet = cnxn.listunspent()
     j = 0
+    addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
     for w in wallet:
       j+=1
       if w['amount'] > nSplits*BTC:
-        addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
         if 1: # try:
           split([w],addrs, cnxn, fee)
           print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
@@ -348,10 +348,7 @@ if __name__ == "__main__":
       bitcoin.SelectParams('regtest')
       idx+=1
     elif sys.argv[idx] == "nol":
-      bitcoin.SelectParams('mainnet')
-      bitcoin.params.DEFAULT_PORT = 9333
-      bitcoin.params.RPC_PORT = 9332
-      bitcoin.params.DNS_SEEDS = tuple()
+      bitcoin.SelectParams('nol')
       idx+=1
     elif sys.argv[idx] == "main":
       bitcoin.SelectParams('mainnet')

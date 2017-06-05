@@ -292,12 +292,15 @@
 (global-set-key [?\C-q ?5] '(lambda() (interactive) (set-background-color (nth 5 gasColorList))))
 (global-set-key [?\C-q ?6] '(lambda() (interactive) (set-background-color (nth 6 gasColorList))))
 
+(global-set-key "\M->" '(lambda() (interactive) (if (fboundp 'python-shift-right) (python-shift-right (region-beginning) (region-end)) (python-indent-shift-right (region-beginning) (region-end) ))))
+(global-set-key "\M-<" '(lambda() (interactive) (if (fboundp 'python-shift-left) (python-shift-left (region-beginning) (region-end)) (python-indent-shift-left (region-beginning) (region-end) ))))
 
 (defvar python-mode-hook nil "*Hook called by `python-mode'.")
 
 (add-hook 'python-mode-hook (function (lambda ()
   (princ "python-mode-hook worked")
-  (local-set-key "\M->" (quote python-shift-right))
+;  (local-set-key "\M->" '(lambda() (interactive) (if (fboundp 'python-shift-right) 'python-shift-right 'python-indent-shift-right)))
+;  (local-set-key "\M->" (quote python-shift-right))
   (local-set-key "\M-<" (quote python-shift-left))
   (local-set-key '[f7]  (quote py-gas-run))
   (local-set-key '[f9]  (quote pdb))
