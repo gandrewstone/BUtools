@@ -83,6 +83,29 @@ def main(op, params=None):
   #wallet = cnxn.listunspent()
   #addrs = [cnxn.getnewaddress() for i in range(0,10)]
   #split([wallet[0]],addrs, cnxn)
+  if op=="spamtill":
+    if len(params):
+      poolSize = int(params[0])
+    else:
+      poolSize = None
+    amt = None
+    addrs = [cnxn.getnewaddress() for i in range(0,25)]
+    while 1:
+      try:
+        spamTx(cnxn,50000,addrs, amt,False,mempoolTarget=poolSize)
+      except bitcoin.rpc.JSONRPCError as e:
+        print ("Out of addresses.  Sleeping")
+        time.sleep(60)
+      except httplib.BadStatusLine as e:
+        cnxn = bitcoin.rpc.Proxy()
+      except (socket.error,socket.timeout) as e:  # connection refused.  Sleep and retry
+        while 1:
+          try:
+            time.sleep(30)
+            cnxn = bitcoin.rpc.Proxy()
+            break
+          except:
+            pass
 
   if op=="spam":
     if len(params):
@@ -165,7 +188,7 @@ def generate(amt=1,cnxn=None):
   if cnxn is None: cnxn = bu
   cnxn._call("generate",amt)
 
-def spamTx(bu, numTx,addrp,amt = None,gen=False):
+def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
   addr = addrp
   print ("SPAM")
   lastGenerate = -1
@@ -179,6 +202,15 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False):
       interval = end - start
       start = end
       print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
+      if mempoolTarget:  # if the mempool is too big, wait for it to be reduced
+        while True:
+          mempoolData=bu._call("getmempoolinfo")
+          mempoolBytes = mempoolData["bytes"]
+          if mempoolBytes < mempoolTarget:
+            break
+          blockNum = bu._call("getblockcount")
+          print("mempool is %d bytes, %d tx. block %d.  Waiting..." % (mempoolBytes, mempoolData["size"], blockNum))
+          time.sleep(15)
     if addrp is None:
       print ("creating new address")
       addr = bu._call('getnewaddress')
