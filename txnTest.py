@@ -19,7 +19,7 @@ BTC = 100000000
 mBTC = 100000
 uBTC = 100
 
-DEFAULT_TX_FEE = 10000
+DEFAULT_TX_FEE = 10
 
 PerfectFractions = True
 
@@ -28,27 +28,20 @@ cnxn = None
 def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy()
-
+  
   try:
-    print (cnxn.getbalance())
+    print ("Balance: ", cnxn.getbalance())
   except ValueError as v:
-    print str(v)
-    pdb.set_trace()
-  try:
-    print (cnxn.getbalance())
-  except ValueError as v:
-    print str(v)
+    print(str(v))
     pdb.set_trace()
 
-  addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
-  change = [cnxn.getrawchangeaddress()]
-  #wallet = cnxn._call("listreceivedbyaddress")
-  #wallet = cnxn._call("listunspent")
   if op=="unspent":
     wallet = cnxn.listunspent()
     print ("This wallet has %d unspent outputs." % len(wallet))
 
   if op=="join":
+    addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
+
     if len(params):
       amt = int(params[0])
     else:
@@ -112,7 +105,8 @@ def main(op, params=None):
       amt = int(params[0])
     else:
       amt = None
-    addrs = [cnxn.getnewaddress() for i in range(0,25)]
+    addrs = [cnxn.getnewaddress() for i in range(0,5)]
+    # addrs = cnxn.getaddressesbyaccount("")
     while 1:
       try:
         spamTx(cnxn,50000,addrs, amt,False)
@@ -157,14 +151,14 @@ def main(op, params=None):
     if len(params)>1:
       fee = int(params[1])
     else:
-      fee = 9000
+      fee = 100
 
     wallet = cnxn.listunspent()
     j = 0
     addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
     for w in wallet:
       j+=1
-      if w['amount'] > nSplits*BTC:
+      if w['amount'] > nSplits*(BTC/10000):
         if 1: # try:
           split([w],addrs, cnxn, fee)
           print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
@@ -204,28 +198,34 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
       print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
       if mempoolTarget:  # if the mempool is too big, wait for it to be reduced
         while True:
+          time.sleep(10) # give time for other threads to run and sync tx from other nodes
           mempoolData=bu._call("getmempoolinfo")
           mempoolBytes = mempoolData["bytes"]
           if mempoolBytes < mempoolTarget:
             break
           blockNum = bu._call("getblockcount")
           print("mempool is %d bytes, %d tx. block %d.  Waiting..." % (mempoolBytes, mempoolData["size"], blockNum))
-          time.sleep(15)
     if addrp is None:
       print ("creating new address")
       addr = bu._call('getnewaddress')
     if type(addrp) is types.ListType:
       addr = addrp[i%len(addrp)]
+    if type(addrp) is types.ListType:
+      change = addrp[(i+3)%len(addrp)]
+    else:
+      change = None
     if randAmt:
       amt = random.randint(100*uBTC, BTC/2)
     print ("Count ", i, "Send %d to %s" % (amt, str(addr)))
     try:
-      bu.sendtoaddress(addr,amt)
+      bu.sendtoaddress(addr, amt, "", "", False, change)
     except bitcoin.rpc.JSONRPCError as e:
+      print("except:", str(e))
       if "Fee is larger" in str(e) and randAmt:
         pass
       else: raise
     except bitcoin.rpc.JSONRPCError as e:
+      print("except 2")
       if gen and i > lastGenerate:  # Out of TxOuts in the wallet so commit these txn
         generate()
         print ("\nGenerated at count %d.  Interval %d" % (i, i-lastGenerate))
@@ -234,7 +234,6 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
         print ("\n%d: Exception %s" % (i,str(e)))
         raise
     finally:
-      #print
       pass
 
 
@@ -296,6 +295,8 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
 
   out = { str(toAddr): outamt }
   #txn = bitcoin.core.CMutableTransaction(inp,[out])
+  print(inp)
+  print(out)
   txn = cnxn._call("createrawtransaction",inp, out)
   signedtxn = cnxn._call("signrawtransaction",str(txn))
   if signedtxn["complete"]:
@@ -396,9 +397,6 @@ if __name__ == "__main__":
 
 def Test():
   if 1:
-      bitcoin.SelectParams('mainnet')
-      bitcoin.params.DEFAULT_PORT = 9333
-      bitcoin.params.RPC_PORT = 9332
-      bitcoin.params.DNS_SEEDS = tuple()
-  main("join",["100","100"])
+      bitcoin.SelectParams('nol')
+  main("spam")
 
