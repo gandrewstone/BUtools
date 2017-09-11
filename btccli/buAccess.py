@@ -351,8 +351,8 @@ def Initialize(configuration):
   Top = XmlNode("root",None)
   #Top.add(Server("local"))
 
+  connectFns = []
   if configuration.has_section("Servers"):
-    connectFns = []
     for key, value in configuration.items("Servers"):
       (name, location,port,username, password) = json.loads(value)
       connectFns.append((Connecter,name, location,port,username, password))

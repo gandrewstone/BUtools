@@ -18,6 +18,8 @@
 ;; C flags
 (setq compile-command "make -j11 V=1")
 
+;; Python
+(setq py-python-command "/usr/bin/python3.6")
 
 ;; delete trailing whitespace?
 ;(add-hook 'c-mode-hook
@@ -121,10 +123,6 @@
 (setq emacs-env-path (file-name-directory load-file-name))
 (add-to-list 'load-path emacs-env-path)
 
-
-;; LANGUAGES
-
-(setq py-python-command "/usr/bin/python3")
 
 
 ;; TOOLS
