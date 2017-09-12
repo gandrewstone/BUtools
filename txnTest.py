@@ -28,7 +28,7 @@ cnxn = None
 def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy()
-  
+
   try:
     print ("Balance: ", cnxn.getbalance())
   except ValueError as v:
@@ -38,6 +38,12 @@ def main(op, params=None):
   if op=="unspent":
     wallet = cnxn.listunspent()
     print ("This wallet has %d unspent outputs." % len(wallet))
+    spendable = filter(lambda x: x["spendable"], wallet)
+    print ("  spendable txos: %d" % len(spendable))
+    satSpendable = 0
+    for s in spendable:
+      satSpendable += s["amount"]
+    print ("  spendable satoshis: %d" % satSpendable)
 
   if op=="join":
     addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
