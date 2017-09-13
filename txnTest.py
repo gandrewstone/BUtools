@@ -25,6 +25,26 @@ PerfectFractions = True
 
 cnxn = None
 
+def rpcRetry(fn):
+        global cnxn
+        while 1:
+          try:
+            ret = fn(cnxn)
+            return ret
+          except httplib.BadStatusLine as e:
+            cnxn = bitcoin.rpc.Proxy()
+          except httplib.ImproperConnectionState as e:
+            cnxn = bitcoin.rpc.Proxy()
+          except (socket.error,socket.timeout) as e:  # connection refused.  Sleep and retry
+            while 1:
+              try:
+                time.sleep(30)
+                cnxn = bitcoin.rpc.Proxy()
+                break
+              except:
+                pass
+
+
 def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy()
@@ -130,26 +150,32 @@ def main(op, params=None):
           except:
             pass
 
-  if op=="sweep":
+  if op=="sweep": # [minAmount] [group]
+    addr = cnxn.getnewaddress()
+    if len(params):
+      amt = int(params[0])
+    else:
+      amt = 10000000
+    if len(params)>1:
+      group = int(params[1])
+    else:
+      group = 50
+
     wallet = cnxn.listunspent()
     offset = 100
     spend = []
-    while len(spend) < 10:
-      if not wallet:
-        break
-      tx = wallet[0]
-      del wallet[0]
-
-      if tx["spendable"] is True and tx["amount"] < 100000 and tx["confirmations"] > 0:
-        print (str(tx))
+    for tx in wallet:
+      if tx["spendable"] is True and tx["amount"] < amt and tx["confirmations"] > 0:
+        # print (str(tx))
         spend.append(tx)
+        
+      if len(spend)>=group:
+          rpcRetry(lambda x: consolidate(spend, addr, x,100*len(spend)))
+          spend=[]
+    if len(spend):
+        rpcRetry(lambda x: consolidate(spend, addr, x,100*len(spend)))
 
-    if spend:
-      consolidate(spend,cnxn.getnewaddress(), cnxn,5000*len(spend))
-    else:
-      print ("there is nothing to sweep")
-
-  if op=="split":
+  if op=="split": # split [nSplits] [fee] [minimum amount to split]
     if len(params):
       nSplits = int(params[0])
     else:
@@ -158,13 +184,16 @@ def main(op, params=None):
       fee = int(params[1])
     else:
       fee = 100
+    minAmount = nSplits*(BTC/10000)
+    if len(params)>2:
+      minAmount = int(params[2])
 
     wallet = cnxn.listunspent()
     j = 0
     addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
     for w in wallet:
       j+=1
-      if w['amount'] > nSplits*(BTC/10000):
+      if w['amount'] > minAmount:
         if 1: # try:
           split([w],addrs, cnxn, fee)
           print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
@@ -279,7 +308,6 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
   except bitcoin.rpc.JSONRPCError as e:
     print (str(e))
 
-
 def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
   #out = bitcoin.core.CTxOut(frm["amount"],toAddr)
   #script = bitcoin.core.CScript()
@@ -301,8 +329,9 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
 
   out = { str(toAddr): outamt }
   #txn = bitcoin.core.CMutableTransaction(inp,[out])
-  print(inp)
-  print(out)
+  #print(inp)
+  print("%d inputs -> %s" % (len(inp), out))
+  
   txn = cnxn._call("createrawtransaction",inp, out)
   signedtxn = cnxn._call("signrawtransaction",str(txn))
   if signedtxn["complete"]:
@@ -404,5 +433,6 @@ if __name__ == "__main__":
 def Test():
   if 1:
       bitcoin.SelectParams('nol')
-  main("spam")
+  # main("spam")
+  main("sweep",[1000000,50])
 
