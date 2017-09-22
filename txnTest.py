@@ -21,6 +21,8 @@ uBTC = 100
 
 DEFAULT_TX_FEE = 10
 
+RPC_TIMEOUT=300
+
 PerfectFractions = True
 
 cnxn = None
@@ -47,7 +49,7 @@ def rpcRetry(fn):
 
 def main(op, params=None):
   global cnxn
-  cnxn = bitcoin.rpc.Proxy()
+  cnxn = bitcoin.rpc.Proxy(timeout=RPC_TIMEOUT)
 
   try:
     print ("Balance: ", cnxn.getbalance())
@@ -56,14 +58,23 @@ def main(op, params=None):
     pdb.set_trace()
 
   if op=="unspent":
+    if len(params):
+      amt = int(params[0])
+    else:
+      amt = 10000
+
     wallet = cnxn.listunspent()
     print ("This wallet has %d unspent outputs." % len(wallet))
     spendable = filter(lambda x: x["spendable"], wallet)
     print ("  spendable txos: %d" % len(spendable))
     satSpendable = 0
+    utxoOverAmt = 0
     for s in spendable:
       satSpendable += s["amount"]
+      if s["amount"]>=amt:
+              utxoOverAmt+=1
     print ("  spendable satoshis: %d" % satSpendable)
+    print ("  UTXOs over %d: %d" % (amt, utxoOverAmt) )
 
   if op=="join":
     addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
@@ -434,5 +445,5 @@ def Test():
   if 1:
       bitcoin.SelectParams('nol')
   # main("spam")
-  main("sweep",[1000000,50])
+  main("sweep",[100000,20])
 
