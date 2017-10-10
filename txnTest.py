@@ -51,11 +51,11 @@ def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy(timeout=RPC_TIMEOUT)
 
-  try:
-    print ("Balance: ", cnxn.getbalance())
-  except ValueError as v:
-    print(str(v))
-    pdb.set_trace()
+#  try:
+#    print ("Balance: ", cnxn.getbalance())
+#  except ValueError as v:
+#    print(str(v))
+#    pdb.set_trace()
 
   if op=="unspent":
     if len(params):
@@ -75,6 +75,35 @@ def main(op, params=None):
               utxoOverAmt+=1
     print ("  spendable satoshis: %d" % satSpendable)
     print ("  UTXOs over %d: %d" % (amt, utxoOverAmt) )
+
+  if op=="repeat":
+      getcontext().prec = 8
+      wallet = cnxn.listunspent()
+      print("Repeating %d tx" % len(wallet))
+      fee = Decimal(0)
+      start = time.time()
+      i = 0
+      for tx in wallet:
+          inp = []
+          amount = Decimal(0)
+          if tx["spendable"] is True:
+              if (i!=0) and (i & 255) == 0:
+                  end = time.time()
+                  interval = end - start
+                  start = end
+                  print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
+              i+=1
+              inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
+              amount += tx["amount"]
+              amount -= fee
+              out = { str(tx["address"]): str(amount/BTC) }
+              print("Send %s to %s" % (str(out), str(tx["address"])))
+              txn = rpcRetry(lambda x: x._call("createrawtransaction",inp, out))
+              signedtxn = rpcRetry(lambda x: x._call("signrawtransaction",str(txn)))
+              if signedtxn["complete"]:
+                  rpcRetry(lambda x: x._call("sendrawtransaction", signedtxn["hex"]))
+              else:
+                  print("tx not complete %s" % str(signedtxn))
 
   if op=="join":
     addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
@@ -442,8 +471,10 @@ if __name__ == "__main__":
   main(op, sys.argv[idx+1:])
 
 def Test():
+  pdb.set_trace()
   if 1:
       bitcoin.SelectParams('nol')
+      main("repeat",[])
   # main("spam")
-  main("sweep",[100000,20])
+  # main("sweep",[100000,20])
 
