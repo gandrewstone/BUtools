@@ -11,6 +11,7 @@ from decimal import *
 import httplib
 import socket
 import random
+import threading
 
 #bitcoin.SelectParams('testnet')
 bitcoin.SelectParams('regtest')
@@ -47,6 +48,35 @@ def rpcRetry(fn):
                 pass
 
 
+def Repeat(wallet, fee):
+      start = time.time()
+      i = 0
+      for tx in wallet:
+          inp = []
+          amount = Decimal(0)
+          if tx["spendable"] is True:
+              if (i!=0) and (i & 255) == 0:
+                  end = time.time()
+                  interval = end - start
+                  start = end
+                  print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
+              i+=1
+              inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
+              amount += tx["amount"]
+              amount -= fee
+              out = { str(tx["address"]): str(amount/BTC) }
+              print("%d: Send %s to %s" % (i, str(out), str(tx["address"])))
+              txn = rpcRetry(lambda x: x._call("createrawtransaction",inp, out))
+              signedtxn = rpcRetry(lambda x: x._call("signrawtransaction",str(txn)))
+              if signedtxn["complete"]:
+                  try:
+                      rpcRetry(lambda x: x._call("sendrawtransaction", signedtxn["hex"]))
+                  except bitcoin.rpc.JSONRPCError as e:
+                      print("Exception: %s" % str(e))
+              else:
+                  print("tx not complete %s" % str(signedtxn))
+
+
 def main(op, params=None):
   global cnxn
   cnxn = bitcoin.rpc.Proxy(timeout=RPC_TIMEOUT)
@@ -79,31 +109,22 @@ def main(op, params=None):
   if op=="repeat":
       getcontext().prec = 8
       wallet = cnxn.listunspent()
+      ntx = len(wallet)
       print("Repeating %d tx" % len(wallet))
       fee = Decimal(0)
-      start = time.time()
-      i = 0
-      for tx in wallet:
-          inp = []
-          amount = Decimal(0)
-          if tx["spendable"] is True:
-              if (i!=0) and (i & 255) == 0:
-                  end = time.time()
-                  interval = end - start
-                  start = end
-                  print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
-              i+=1
-              inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
-              amount += tx["amount"]
-              amount -= fee
-              out = { str(tx["address"]): str(amount/BTC) }
-              print("Send %s to %s" % (str(out), str(tx["address"])))
-              txn = rpcRetry(lambda x: x._call("createrawtransaction",inp, out))
-              signedtxn = rpcRetry(lambda x: x._call("signrawtransaction",str(txn)))
-              if signedtxn["complete"]:
-                  rpcRetry(lambda x: x._call("sendrawtransaction", signedtxn["hex"]))
-              else:
-                  print("tx not complete %s" % str(signedtxn))
+      if ntx > 100000000:  # don't use the threaded version yet -- bitcoind not parallelized anyway
+        splits = [ntx/4, ntx/2, ntx*3/4]
+        th = []
+        th.append( threading.Thread(target=lambda: Repeat(wallet[:splits[0]], fee)))
+        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[0]:splits[1]], fee)))
+        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[1]:splits[2]], fee)))
+        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[2]:], fee)))
+        for t in th:
+            t.start()
+        for t in th:
+            t.join()
+      else:
+          Repeat(wallet, fee)
 
   if op=="join":
     addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
