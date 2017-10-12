@@ -52,7 +52,10 @@ def printChainHeader(chain,blk):
 def main(allchains=False,activeDepth=10):
   global bu
   bu = btc.Proxy() # service_port=18332)
-  
+
+  # list transactions
+  list_txns = False
+
   chainTooOld = 10000
   # print bu.getbalance()
 
@@ -67,7 +70,7 @@ def main(allchains=False,activeDepth=10):
     blkid = chain["hash"]
     blk=None
     try:
-      blk = bu._call("getblock", blkid)
+      blk = bu._call("getblock", blkid, True, list_txns)
     except btc.JSONRPCError, e:  # We don't have info about this block
       #print "  " + str(e)
       #continue  # Skip showing old chains
@@ -83,21 +86,25 @@ def main(allchains=False,activeDepth=10):
       try:
         # print blkid
         #blk = bu.getblock(blkid)
-        blk = bu._call("getblock", blkid)
+        blk = bu._call("getblock", blkid, True, list_txns)
       except btc.JSONRPCError, e:  # We don't have info about this block
         print ("No info on block %d " % i) + str(e)
         continue
       if blk["size"] > 1000000: pfx = "**  "
       else: pfx = "    "
-      coinbaseHash = blk["tx"][0]
-      try:
-        rawcoinbase = bu._call("getrawtransaction", coinbaseHash)
-        coinbase = bu._call("decoderawtransaction", rawcoinbase)
-        data = binascii.unhexlify(coinbase["vin"][0]["coinbase"][8:])
-      except Exception, e:
-        data = str(e)
-      print "--- %sDate: %s Height: %6d Size: %8d  NumTx: %6d  Ver: %8x  Hash: %s " % (pfx,datetime.datetime.fromtimestamp(blk["time"]).strftime('%Y-%m-%d %H:%M:%S'),blk['height'],blk["size"],len(blk["tx"]),blk["version"],blkid)
-      print "MSG:", data
+      if list_txns :
+        txns_count = len(blk["tx"])
+        coinbaseHash = blk["tx"][0]
+        try:
+          rawcoinbase = bu._call("getrawtransaction", coinbaseHash)
+          coinbase = bu._call("decoderawtransaction", rawcoinbase)
+          data = binascii.unhexlify(coinbase["vin"][0]["coinbase"][8:])
+        except Exception, e:
+          data = str(e)
+      else:
+        txns_count = blk["txcount"]
+      print "--- %sDate: %s Height: %6d Size: %8d  NumTx: %6d  Ver: %8x  Hash: %s " % (pfx,datetime.datetime.fromtimestamp(blk["time"]).strftime('%Y-%m-%d %H:%M:%S'),blk['height'],blk["size"],txns_count,blk["version"],blkid)
+      if list_txns: print "MSG:", data
       try:
         blkid=blk["previousblockhash"]
       except KeyError, e:  # first block
