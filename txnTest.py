@@ -100,12 +100,21 @@ def main(op, params=None):
     print ("  spendable txos: %d" % len(spendable))
     satSpendable = 0
     utxoOverAmt = 0
+    largest = 0
     for s in spendable:
       satSpendable += s["amount"]
       if s["amount"]>=amt:
-              utxoOverAmt+=1
+          utxoOverAmt+=1
+      if s["amount"] > largest:
+          largest = s["amount"]
+
     print ("  spendable satoshis: %d" % satSpendable)
     print ("  UTXOs over %d: %d" % (amt, utxoOverAmt) )
+    print ("  largest UTXO: %d" % largest)
+    wallet.sort(key=lambda x: x["amount"], reverse=True)
+    print ("  20 largest utxos:")
+    for w in wallet[0:20]:
+        print("    %d" % w["amount"])
 
   if op=="repeat":
       getcontext().prec = 8
