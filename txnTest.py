@@ -48,7 +48,7 @@ def rpcRetry(fn):
                 pass
 
 
-def Repeat(wallet, fee):
+def Repeat(wallet, fee, verbose = False):
       start = time.time()
       i = 0
       for tx in wallet:
@@ -59,13 +59,14 @@ def Repeat(wallet, fee):
                   end = time.time()
                   interval = end - start
                   start = end
-                  print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
+                  print ("%d: issued 256 payments in %f seconds.  %f payments/sec" % (i, interval, 256.0/interval))
               i+=1
               inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
               amount += tx["amount"]
               amount -= fee
               out = { str(tx["address"]): str(amount/BTC) }
-              print("%d: Send %s to %s" % (i, str(out), str(tx["address"])))
+              if verbose:
+                  print("%d: Send %s to %s" % (i, str(out), str(tx["address"])))
               txn = rpcRetry(lambda x: x._call("createrawtransaction",inp, out))
               signedtxn = rpcRetry(lambda x: x._call("signrawtransaction",str(txn)))
               if signedtxn["complete"]:
@@ -108,22 +109,31 @@ def main(op, params=None):
 
   if op=="repeat":
       getcontext().prec = 8
-      wallet = cnxn.listunspent()
-      ntx = len(wallet)
-      print("Repeating %d tx" % len(wallet))
       fee = Decimal(0)
-      if ntx > 100000000:  # don't use the threaded version yet -- bitcoind not parallelized anyway
-        splits = [ntx/4, ntx/2, ntx*3/4]
-        th = []
-        th.append( threading.Thread(target=lambda: Repeat(wallet[:splits[0]], fee)))
-        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[0]:splits[1]], fee)))
-        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[1]:splits[2]], fee)))
-        th.append( threading.Thread(target=lambda: Repeat(wallet[splits[2]:], fee)))
-        for t in th:
+      threaded = False
+      if len(params):
+        fee = Decimal(params[0])
+      if len(params)>1:
+        threaded = params[1] in ["True", "true", "TRUE", "threaded", "1"]
+      while 1:
+        print("starting over")
+        wallet = cnxn.listunspent()
+        ntx = len(wallet)
+
+        if threaded or ntx > 100000000:  # don't use the threaded version yet -- bitcoind not parallelized anyway
+          print("Repeating %d tx threaded" % len(wallet))
+          splits = [ntx/4, ntx/2, ntx*3/4]
+          th = []
+          th.append( threading.Thread(target=lambda: Repeat(wallet[:splits[0]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[0]:splits[1]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[1]:splits[2]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[2]:], fee)))
+          for t in th:
             t.start()
-        for t in th:
+          for t in th:
             t.join()
-      else:
+        else:
+          print("Repeating %d tx sequential" % len(wallet))
           Repeat(wallet, fee)
 
   if op=="join":
@@ -257,7 +267,7 @@ def main(op, params=None):
       if w['amount'] > minAmount:
         if 1: # try:
           split([w],addrs, cnxn, fee)
-          print ("split %d satoshi into %d addrs fee %d (%d sat per output)" % (w['amount'],nSplits, fee, w['amount']/nSplits))
+          print ("%d: split %d satoshi into %d addrs fee %d (%d sat per output)" % (j, w['amount'],nSplits, fee, w['amount']/nSplits))
         else:  # :except bitcoin.rpc.JSONRPCError as e:
           print ("\n%d: Exception %s" % (j,str(e)))
           pdb.set_trace()
