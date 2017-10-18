@@ -257,7 +257,7 @@ def main(op, params=None):
       if w['amount'] > minAmount:
         if 1: # try:
           split([w],addrs, cnxn, fee)
-          print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
+          print ("split %d satoshi into %d addrs fee %d (%d sat per output)" % (w['amount'],nSplits, fee, w['amount']/nSplits))
         else:  # :except bitcoin.rpc.JSONRPCError as e:
           print ("\n%d: Exception %s" % (j,str(e)))
           pdb.set_trace()
@@ -345,21 +345,25 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
   outp = {} # = { str(toAddr): str((amount-txfee)/BTC) }
   getcontext().prec = 8
   amtPer = (Decimal(amount-txfee)/len(toAddrs)).to_integral_value()
-  print ("amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee)
+  # print ("amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee)
 
+  sum = Decimal(0)
   for a in toAddrs[0:-1]:
-    if PerfectFractions:
       outp[str(a)] = str(amtPer/BTC)
-    else:
-      outp[str(a)] = float(amtPer/BTC)
+      sum += Decimal(str(amtPer/BTC))
 
   a = toAddrs[-1]
-  amtPer = (amount - ((len(toAddrs)-1)*amtPer)) - txfee
-  print ("final amt: ", amtPer)
-  if PerfectFractions:
-      outp[str(a)] = str(amtPer/BTC)
-  else:
-      outp[str(a)] = float(amtPer/BTC)
+  lastAmtPer = amount - sum*BTC - txfee
+  # print ("final amt: ", lastAmtPer)
+  outp[str(a)] = str(lastAmtPer/BTC)
+
+  tally = Decimal(0)
+  for key,val in outp.items():
+      tally += Decimal(val)
+  # print("Final tally: ", str(tally))
+  if tally > amount:
+          print("Bug: sum of splits is > input")
+          pdb.set_trace()
 
   try:
     txn = cnxn._call("createrawtransaction",inp, outp)
