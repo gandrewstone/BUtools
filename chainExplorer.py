@@ -51,7 +51,7 @@ def printChainHeader(chain,blk):
 
 def main(allchains=False,activeDepth=10):
   global bu
-  bu = btc.Proxy() # service_port=18332)
+  bu = btc.Proxy(timeout=600) # service_port=18332)
 
   # list transactions
   list_txns = False
@@ -110,7 +110,7 @@ def main(allchains=False,activeDepth=10):
       except KeyError, e:  # first block
         print "first block"
         break
-        
+
 if __name__ == "__main__":
   allchains=False
   if len(sys.argv) > 1:

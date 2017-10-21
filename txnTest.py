@@ -48,9 +48,10 @@ def rpcRetry(fn):
                 pass
 
 
-def Repeat(wallet, fee, verbose = False):
+def Repeat(wallet, fee, verbose = False, tps = 10000):
       start = time.time()
       i = 0
+      sleepAmt = 0.0
       for tx in wallet:
           inp = []
           amount = Decimal(0)
@@ -59,7 +60,12 @@ def Repeat(wallet, fee, verbose = False):
                   end = time.time()
                   interval = end - start
                   start = end
-                  print ("%d: issued 256 payments in %f seconds.  %f payments/sec" % (i, interval, 256.0/interval))
+                  curtps = 256.0/interval
+                  print ("%d: issued 256 payments in %f seconds.  %f payments/sec" % (i, interval, curtps))
+                  if curtps > tps:  # Super simple prorportional control algorithm
+                    sleepAmt += (curtps-tps) * .0001
+                  elif curtps < tps:
+                    sleepAmt -= (tps-curtps) * .0001
               i+=1
               inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
               amount += tx["amount"]
@@ -76,6 +82,8 @@ def Repeat(wallet, fee, verbose = False):
                       print("Exception: %s" % str(e))
               else:
                   print("tx not complete %s" % str(signedtxn))
+              if sleepAmt > 0:
+                  time.sleep(sleepAmt)
 
 
 def main(op, params=None):
@@ -122,8 +130,13 @@ def main(op, params=None):
       threaded = False
       if len(params):
         fee = Decimal(params[0])
-      if len(params)>1:
-        threaded = params[1] in ["True", "true", "TRUE", "threaded", "1"]
+      if len(params)>1:  # was transactions per second set?
+        tps = int(params[1])
+      else:
+        tps = 10000
+      if len(params)>2:
+        threaded = params[2] in ["True", "true", "TRUE", "threaded", "1"]
+        
       while 1:
         print("starting over")
         wallet = cnxn.listunspent()
@@ -143,7 +156,7 @@ def main(op, params=None):
             t.join()
         else:
           print("Repeating %d tx sequential" % len(wallet))
-          Repeat(wallet, fee)
+          Repeat(wallet, fee, False, tps)
 
   if op=="join":
     addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
