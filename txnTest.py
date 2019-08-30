@@ -224,7 +224,7 @@ def main(op, params=None):
       amt = int(params[0])
     else:
       amt = None
-    addrs = [cnxn.getnewaddress() for i in range(0,5)]
+    addrs = [cnxn.rawgetnewaddress() for i in range(0,5)]
     # addrs = cnxn.getaddressesbyaccount("")
     while 1:
       try:
@@ -283,7 +283,7 @@ def main(op, params=None):
 
     wallet = cnxn.listunspent()
     j = 0
-    addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
+    addrs = [cnxn.rawgetnewaddress() for i in range(0,nSplits)]
     for w in wallet:
       j+=1
       if w['amount'] > minAmount:
@@ -346,7 +346,7 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
       amt = random.randint(100*uBTC, BTC/2)
     print ("Count ", i, "Send %d to %s" % (amt, str(addr)))
     try:
-      bu.sendtoaddress(addr, amt, "", "", False, change)
+      bu.sendtoaddress(addr, amt) # giga-perf stuff: bu.gigasendtoaddress(addr, amt, "", "", False, change)
     except bitcoin.rpc.JSONRPCError as e:
       print("except:", str(e))
       if "Fee is larger" in str(e) and randAmt:

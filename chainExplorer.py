@@ -49,12 +49,9 @@ def spamTx(bu, numTx,addrp,amt = 1*mBTC,gen=False):
 def printChainHeader(chain,blk):
   print "Status: %s, height: %d, length: %d, work: %s" % (chain["status"], chain["height"], chain["branchlen"],blk["chainwork"].strip("0") if blk else "NA")
 
-def main(allchains=False,activeDepth=10):
+def main(allchains=False,activeDepth=10, list_txns=False):
   global bu
   bu = btc.Proxy(timeout=600) # service_port=18332)
-
-  # list transactions
-  list_txns = False
 
   chainTooOld = 10000
   # print bu.getbalance()
@@ -149,7 +146,14 @@ if __name__ == "__main__":
         time.sleep(60)
     else:
       depth = int(sys.argv[idx])
-      main(False,depth)
+      idx+=1
+      list_txns = False
+      try:
+          if sys.argv[idx] == "msg":
+             list_txns = True
+      except: # not enough args
+          pass
+      main(False,depth,list_txns)
   else:
     main(allchains)
 
