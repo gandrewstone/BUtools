@@ -11,6 +11,7 @@ from decimal import *
 import httplib
 import socket
 import random
+import threading
 
 #bitcoin.SelectParams('testnet')
 bitcoin.SelectParams('regtest')
@@ -19,36 +20,147 @@ BTC = 100000000
 mBTC = 100000
 uBTC = 100
 
-DEFAULT_TX_FEE = 10000
+DEFAULT_TX_FEE = 10
+
+RPC_TIMEOUT=300
 
 PerfectFractions = True
 
 cnxn = None
 
+def rpcRetry(fn):
+        global cnxn
+        while 1:
+          try:
+            ret = fn(cnxn)
+            return ret
+          except httplib.BadStatusLine as e:
+            cnxn = bitcoin.rpc.Proxy()
+          except httplib.ImproperConnectionState as e:
+            cnxn = bitcoin.rpc.Proxy()
+          except (socket.error,socket.timeout) as e:  # connection refused.  Sleep and retry
+            while 1:
+              try:
+                time.sleep(30)
+                cnxn = bitcoin.rpc.Proxy()
+                break
+              except:
+                pass
+
+
+def Repeat(wallet, fee, verbose = False, tps = 10000):
+      start = time.time()
+      i = 0
+      sleepAmt = 0.0
+      for tx in wallet:
+          inp = []
+          amount = Decimal(0)
+          if tx["spendable"] is True:
+              if (i!=0) and (i & 255) == 0:
+                  end = time.time()
+                  interval = end - start
+                  start = end
+                  curtps = 256.0/interval
+                  print ("%d: issued 256 payments in %f seconds.  %f payments/sec" % (i, interval, curtps))
+                  if curtps > tps:  # Super simple prorportional control algorithm
+                    sleepAmt += (curtps-tps) * .0001
+                  elif curtps < tps:
+                    sleepAmt -= (tps-curtps) * .0001
+              i+=1
+              inp.append({"txid":bitcoin.core.b2lx(tx["outpoint"].hash),"vout":tx["outpoint"].n})
+              amount += tx["amount"]
+              amount -= fee
+              out = { str(tx["address"]): str(amount/BTC) }
+              if verbose:
+                  print("%d: Send %s to %s" % (i, str(out), str(tx["address"])))
+              txn = rpcRetry(lambda x: x._call("createrawtransaction",inp, out))
+              signedtxn = rpcRetry(lambda x: x._call("signrawtransaction",str(txn)))
+              if signedtxn["complete"]:
+                  try:
+                      rpcRetry(lambda x: x._call("sendrawtransaction", signedtxn["hex"]))
+                  except bitcoin.rpc.JSONRPCError as e:
+                      print("Exception: %s" % str(e))
+              else:
+                  print("tx not complete %s" % str(signedtxn))
+              if sleepAmt > 0:
+                  time.sleep(sleepAmt)
+
+
 def main(op, params=None):
   global cnxn
-  cnxn = bitcoin.rpc.Proxy()
+  cnxn = bitcoin.rpc.Proxy(timeout=RPC_TIMEOUT)
 
-  try:
-    print (cnxn.getbalance())
-  except ValueError as v:
-    print str(v)
-    pdb.set_trace()
-  try:
-    print (cnxn.getbalance())
-  except ValueError as v:
-    print str(v)
-    pdb.set_trace()
+#  try:
+#    print ("Balance: ", cnxn.getbalance())
+#  except ValueError as v:
+#    print(str(v))
+#    pdb.set_trace()
 
-  addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
-  change = [cnxn.getrawchangeaddress()]
-  #wallet = cnxn._call("listreceivedbyaddress")
-  #wallet = cnxn._call("listunspent")
   if op=="unspent":
+    if len(params):
+      amt = int(params[0])
+    else:
+      amt = 10000
+
     wallet = cnxn.listunspent()
     print ("This wallet has %d unspent outputs." % len(wallet))
+    spendable = filter(lambda x: x["spendable"], wallet)
+    print ("  spendable txos: %d" % len(spendable))
+    satSpendable = 0
+    utxoOverAmt = 0
+    largest = 0
+    for s in spendable:
+      satSpendable += s["amount"]
+      if s["amount"]>=amt:
+          utxoOverAmt+=1
+      if s["amount"] > largest:
+          largest = s["amount"]
+
+    print ("  spendable satoshis: %d" % satSpendable)
+    print ("  UTXOs over %d: %d" % (amt, utxoOverAmt) )
+    print ("  largest UTXO: %d" % largest)
+    wallet.sort(key=lambda x: x["amount"], reverse=True)
+    print ("  20 largest utxos:")
+    for w in wallet[0:20]:
+        print("    %d" % w["amount"])
+
+  if op=="repeat":
+      getcontext().prec = 8
+      fee = Decimal(0)
+      threaded = False
+      if len(params):
+        fee = Decimal(params[0])
+      if len(params)>1:  # was transactions per second set?
+        tps = int(params[1])
+      else:
+        tps = 10000
+      if len(params)>2:
+        threaded = params[2] in ["True", "true", "TRUE", "threaded", "1"]
+        
+      while 1:
+        print("starting over")
+        wallet = cnxn.listunspent()
+        ntx = len(wallet)
+
+        if threaded or ntx > 100000000:  # don't use the threaded version yet -- bitcoind not parallelized anyway
+          print("Repeating %d tx threaded" % len(wallet))
+          splits = [ntx/4, ntx/2, ntx*3/4]
+          th = []
+          th.append( threading.Thread(target=lambda: Repeat(wallet[:splits[0]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[0]:splits[1]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[1]:splits[2]], fee)))
+          th.append( threading.Thread(target=lambda: Repeat(wallet[splits[2]:], fee)))
+          for t in th:
+            t.start()
+          for t in th:
+            t.join()
+        else:
+          print("Repeating %d tx sequential" % len(wallet))
+          Repeat(wallet, fee, False, tps)
 
   if op=="join":
+    addrs = [cnxn.getnewaddress(),cnxn.getnewaddress()]
+
     if len(params):
       amt = int(params[0])
     else:
@@ -112,7 +224,8 @@ def main(op, params=None):
       amt = int(params[0])
     else:
       amt = None
-    addrs = [cnxn.getnewaddress() for i in range(0,25)]
+    addrs = [cnxn.rawgetnewaddress() for i in range(0,5)]
+    # addrs = cnxn.getaddressesbyaccount("")
     while 1:
       try:
         spamTx(cnxn,50000,addrs, amt,False)
@@ -130,26 +243,32 @@ def main(op, params=None):
           except:
             pass
 
-  if op=="sweep":
+  if op=="sweep": # [minAmount] [group]
+    addr = cnxn.getnewaddress()
+    if len(params):
+      amt = int(params[0])
+    else:
+      amt = 10000000
+    if len(params)>1:
+      group = int(params[1])
+    else:
+      group = 50
+
     wallet = cnxn.listunspent()
     offset = 100
     spend = []
-    while len(spend) < 10:
-      if not wallet:
-        break
-      tx = wallet[0]
-      del wallet[0]
-
-      if tx["spendable"] is True and tx["amount"] < 100000 and tx["confirmations"] > 0:
-        print (str(tx))
+    for tx in wallet:
+      if tx["spendable"] is True and tx["amount"] < amt and tx["confirmations"] > 0:
+        # print (str(tx))
         spend.append(tx)
+        
+      if len(spend)>=group:
+          rpcRetry(lambda x: consolidate(spend, addr, x,100*len(spend)))
+          spend=[]
+    if len(spend):
+        rpcRetry(lambda x: consolidate(spend, addr, x,100*len(spend)))
 
-    if spend:
-      consolidate(spend,cnxn.getnewaddress(), cnxn,5000*len(spend))
-    else:
-      print ("there is nothing to sweep")
-
-  if op=="split":
+  if op=="split": # split [nSplits] [fee] [minimum amount to split]
     if len(params):
       nSplits = int(params[0])
     else:
@@ -157,17 +276,20 @@ def main(op, params=None):
     if len(params)>1:
       fee = int(params[1])
     else:
-      fee = 9000
+      fee = 100
+    minAmount = nSplits*(BTC/10000)
+    if len(params)>2:
+      minAmount = int(params[2])
 
     wallet = cnxn.listunspent()
     j = 0
-    addrs = [cnxn.getnewaddress() for i in range(0,nSplits)]
+    addrs = [cnxn.rawgetnewaddress() for i in range(0,nSplits)]
     for w in wallet:
       j+=1
-      if w['amount'] > nSplits*BTC:
+      if w['amount'] > minAmount:
         if 1: # try:
           split([w],addrs, cnxn, fee)
-          print ("split %d satoshi into %d addrs fee %d %s" % (w['amount'],nSplits, fee, str(addrs)))
+          print ("%d: split %d satoshi into %d addrs fee %d (%d sat per output)" % (j, w['amount'],nSplits, fee, w['amount']/nSplits))
         else:  # :except bitcoin.rpc.JSONRPCError as e:
           print ("\n%d: Exception %s" % (j,str(e)))
           pdb.set_trace()
@@ -204,28 +326,34 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
       print ("issued 256 payments in %f seconds.  %f payments/sec" % (interval, 256.0/interval))
       if mempoolTarget:  # if the mempool is too big, wait for it to be reduced
         while True:
+          time.sleep(10) # give time for other threads to run and sync tx from other nodes
           mempoolData=bu._call("getmempoolinfo")
           mempoolBytes = mempoolData["bytes"]
           if mempoolBytes < mempoolTarget:
             break
           blockNum = bu._call("getblockcount")
           print("mempool is %d bytes, %d tx. block %d.  Waiting..." % (mempoolBytes, mempoolData["size"], blockNum))
-          time.sleep(15)
     if addrp is None:
       print ("creating new address")
       addr = bu._call('getnewaddress')
     if type(addrp) is types.ListType:
       addr = addrp[i%len(addrp)]
+    if type(addrp) is types.ListType:
+      change = addrp[(i+3)%len(addrp)]
+    else:
+      change = None
     if randAmt:
       amt = random.randint(100*uBTC, BTC/2)
     print ("Count ", i, "Send %d to %s" % (amt, str(addr)))
     try:
-      bu.sendtoaddress(addr,amt)
+      bu.sendtoaddress(addr, amt) # giga-perf stuff: bu.gigasendtoaddress(addr, amt, "", "", False, change)
     except bitcoin.rpc.JSONRPCError as e:
+      print("except:", str(e))
       if "Fee is larger" in str(e) and randAmt:
         pass
       else: raise
     except bitcoin.rpc.JSONRPCError as e:
+      print("except 2")
       if gen and i > lastGenerate:  # Out of TxOuts in the wallet so commit these txn
         generate()
         print ("\nGenerated at count %d.  Interval %d" % (i, i-lastGenerate))
@@ -234,7 +362,6 @@ def spamTx(bu, numTx,addrp,amt = None,gen=False, mempoolTarget=None):
         print ("\n%d: Exception %s" % (i,str(e)))
         raise
     finally:
-      #print
       pass
 
 
@@ -250,21 +377,25 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
   outp = {} # = { str(toAddr): str((amount-txfee)/BTC) }
   getcontext().prec = 8
   amtPer = (Decimal(amount-txfee)/len(toAddrs)).to_integral_value()
-  print ("amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee)
+  # print ("amount: ", amount, " amount per: ", amtPer, "from :", len(frm), "to: ", len(toAddrs), "tx fee: ", txfee)
 
+  sum = Decimal(0)
   for a in toAddrs[0:-1]:
-    if PerfectFractions:
       outp[str(a)] = str(amtPer/BTC)
-    else:
-      outp[str(a)] = float(amtPer/BTC)
+      sum += Decimal(str(amtPer/BTC))
 
   a = toAddrs[-1]
-  amtPer = (amount - ((len(toAddrs)-1)*amtPer)) - txfee
-  print ("final amt: ", amtPer)
-  if PerfectFractions:
-      outp[str(a)] = str(amtPer/BTC)
-  else:
-      outp[str(a)] = float(amtPer/BTC)
+  lastAmtPer = amount - sum*BTC - txfee
+  # print ("final amt: ", lastAmtPer)
+  outp[str(a)] = str(lastAmtPer/BTC)
+
+  tally = Decimal(0)
+  for key,val in outp.items():
+      tally += Decimal(val)
+  # print("Final tally: ", str(tally))
+  if tally > amount:
+          print("Bug: sum of splits is > input")
+          pdb.set_trace()
 
   try:
     txn = cnxn._call("createrawtransaction",inp, outp)
@@ -273,7 +404,6 @@ def split(frm, toAddrs, cnxn, txfee=DEFAULT_TX_FEE):
       cnxn._call("sendrawtransaction", signedtxn["hex"])
   except bitcoin.rpc.JSONRPCError as e:
     print (str(e))
-
 
 def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
   #out = bitcoin.core.CTxOut(frm["amount"],toAddr)
@@ -296,6 +426,9 @@ def consolidate(frm, toAddr, cnxn, txfee=DEFAULT_TX_FEE):
 
   out = { str(toAddr): outamt }
   #txn = bitcoin.core.CMutableTransaction(inp,[out])
+  #print(inp)
+  print("%d inputs -> %s" % (len(inp), out))
+  
   txn = cnxn._call("createrawtransaction",inp, out)
   signedtxn = cnxn._call("signrawtransaction",str(txn))
   if signedtxn["complete"]:
@@ -395,10 +528,10 @@ if __name__ == "__main__":
   main(op, sys.argv[idx+1:])
 
 def Test():
+  pdb.set_trace()
   if 1:
-      bitcoin.SelectParams('mainnet')
-      bitcoin.params.DEFAULT_PORT = 9333
-      bitcoin.params.RPC_PORT = 9332
-      bitcoin.params.DNS_SEEDS = tuple()
-  main("join",["100","100"])
+      bitcoin.SelectParams('nol')
+      main("repeat",[])
+  # main("spam")
+  # main("sweep",[100000,20])
 

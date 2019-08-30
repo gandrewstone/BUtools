@@ -7,12 +7,13 @@
 ;; Choose what you want integrated into emacs. Set to a 1 to use, nil if not using
 
 (setq use-python 1)
+(setq use-kotlin 1)
 (setq use-java nil)
 (setq use-c 1)
 (setq use-cpp 1)  ;; c++
 (setq use-sml nil)  ;; standard ML
 (setq use-git 1)
-(setq use-clang 1)
+(setq use-clang nil)
 (setq use-cscope 1)               ;; Actually cscope will not work on NT
 
 ;; C flags
@@ -152,6 +153,11 @@
   (add-to-list 'load-path "git/")
     (require 'git)
     (require 'git-blame))
+
+(if use-kotlin (let ()
+  (setq kotlin-tab-width 4)
+  (global-set-key [C-tab] 'clang-format-region)
+))
 
 
 ;; My key mappings

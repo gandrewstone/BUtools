@@ -14,6 +14,11 @@ cd BUtools
 git submodule update --init --recursive
 ```
 
+* Compile dependencies
+sudo apt-get install python-setuptools
+cd pythonbitcoinlib
+python setup.py build
+
 ## Operation
 
 ### Create spam
