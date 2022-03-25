@@ -11,13 +11,20 @@
 (global-set-key (kbd "s-=") '(lambda() (interactive) (zoom-all-frames-in)))
 (global-set-key (kbd "s--") '(lambda() (interactive) (zoom-all-frames-out)))
 
+(global-set-key (kbd "C-u") 'find-next-unsafe-char)
+
+; This recursive solution hits max recursion depth if a lot of files are opened
+;(defun gas-buffer-file-list-old (lst)
+;  (if lst
+;      (if (buffer-file-name (car lst))
+;          (cons (buffer-file-name (car lst)) (gas-buffer-file-list (cdr lst)))
+;          (gas-buffer-file-list (cdr lst)))
+;    nil))
 
 (defun gas-buffer-file-list (lst)
-  (if lst
-      (if (buffer-file-name (car lst))
-          (cons (buffer-file-name (car lst)) (gas-buffer-file-list (cdr lst)))
-          (gas-buffer-file-list (cdr lst)))
-      nil))
+  (seq-map (lambda (elt) (buffer-file-name elt))
+           (seq-filter (lambda (elt) (buffer-file-name elt)) lst))
+  )
 
 ; test (sort (gas-buffer-file-list (buffer-list)) 'string<)
 

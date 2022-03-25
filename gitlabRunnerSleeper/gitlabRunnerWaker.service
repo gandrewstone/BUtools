@@ -1,0 +1,17 @@
+# Run this on your always-on monitoring computer
+# sudo cp gitlabRunnerWaker.service /etc/systemd/system
+# sudo systemctl daemon-reload
+# sudo systemctl enable gitlabRunnerWaker
+#
+[Unit]
+Description=Gitlab Runner Waker
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/pi/gitlabRunnerSleeper
+ExecStart=/usr/bin/python3 /home/pi/gitlabRunnerSleeper/runnerWaker.py
+
+[Install]
+WantedBy=multi-user.target

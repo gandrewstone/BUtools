@@ -1,0 +1,16 @@
+# sudo cp gitlabRunnerSleeper.service /etc/systemd/system
+# sudo systemctl daemon-reload
+# sudo systemctl enable gitlabRunnerSleeper
+#
+[Unit]
+Description=Gitlab Runner Idle Sleeper
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/stone/gitlabRunnerSleeper
+ExecStart=/usr/bin/python3 /home/stone/gitlabRunnerSleeper/runnerSleeper.py
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,25 @@
+(set-face-attribute 'default nil :height 200)
+
+(defun set-frame-size-according-to-resolution ()
+  (interactive)
+  (if window-system
+  (progn
+    ;; use 120 char wide window for largeish displays
+    ;; and smaller 80 column windows for smaller displays
+    ;; pick whatever numbers make sense for you
+    (if (> (x-display-pixel-width) 1280)
+           (add-to-list 'default-frame-alist (cons 'width 200))
+           (add-to-list 'default-frame-alist (cons 'width 80)))
+    ;; for the height, subtract a couple hundred pixels
+    ;; from the screen height (for panels, menubars and
+    ;; whatnot), then divide by the height of a char to
+    ;; get the height we want
+    (add-to-list 'default-frame-alist 
+         (cons 'height (/ (- (x-display-pixel-height) 200)
+                             (frame-char-height)))))))
+
+(set-frame-size-according-to-resolution)
+
 
 ;; Choose your operating system (All of these variables must be set to nil except for one!)
 (setq cfg-linux 1)
@@ -21,6 +43,7 @@
 
 ;; Python
 (setq py-python-command "/usr/bin/python3.6")
+(setq python-shell-completion-native-enable nil)
 
 ;; delete trailing whitespace?
 ;(add-hook 'c-mode-hook
@@ -38,6 +61,11 @@
 
 ; don't go to the end of each line if the prev line was longer.
 ;(setq picture-mode t)
+
+;; Remove some irritating warnings
+(load-library "warnings")
+(add-to-list 'warning-suppress-types '(undo discard-info))
+
 
 ;; indentation and tabs vs spaces
 (setq c-tab-always-indent nil)
@@ -127,6 +155,38 @@
 
 
 ;; TOOLS
+
+(defun find-next-unsafe-char (&optional coding-system)
+  "Find the next character in the buffer that cannot be encoded by
+coding-system. If coding-system is unspecified, default to the coding
+system that would be used to save this buffer. With prefix argument,
+prompt the user for a coding system."
+  (interactive "Zcoding-system: ")
+  (if (stringp coding-system) (setq coding-system (intern coding-system)))
+  (if coding-system nil
+    (setq coding-system
+          (or save-buffer-coding-system buffer-file-coding-system)))
+  (let ((found nil) (char nil) (csets nil) (safe nil))
+    (setq safe (coding-system-get coding-system 'safe-chars))
+    ;; some systems merely specify the charsets as ones they can encode:
+    (setq csets (coding-system-get coding-system 'safe-charsets))
+    (save-excursion
+      ;;(message "zoom to <")
+      (let ((end  (point-max))
+            (here (point    ))
+            (char  nil))
+        (while (and (< here end) (not found))
+          (setq char (char-after here))
+          (if (or (eq safe t)
+                  (< char ?\177)
+                  (and safe  (aref safe char))
+                  (and csets (memq (char-charset char) csets)))
+              nil ;; safe char, noop
+            (setq found (cons here char)))
+          (setq here (1+ here))) ))
+    (and found (goto-char (1+ (car found))))
+    found))
+
 
 ;; format highlighting
 (require 'whitespace)
