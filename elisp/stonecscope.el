@@ -7,7 +7,7 @@
 
 (setq gasErrCsNotStarted "cscope process not found: restart with M-x cs command.")
 
-(setq gas-cs-end-regexp ">>.$")
+(setq gas-cs-end-regexp "^>>\s$")
 (setq gas-cs-menu-name "cscope")
 
 (defun full-dir-cleanup(base)

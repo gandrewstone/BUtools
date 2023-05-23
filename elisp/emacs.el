@@ -1,4 +1,4 @@
-(set-face-attribute 'default nil :height 200)
+(set-face-attribute 'default nil :height 120)
 
 (defun set-frame-size-according-to-resolution ()
   (interactive)
@@ -42,7 +42,7 @@
 (setq compile-command "make -j11 V=1")
 
 ;; Python
-(setq py-python-command "/usr/bin/python3.6")
+(setq py-python-command "/usr/bin/python3")
 (setq python-shell-completion-native-enable nil)
 
 ;; delete trailing whitespace?
