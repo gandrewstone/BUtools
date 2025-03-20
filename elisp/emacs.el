@@ -42,7 +42,7 @@
 (setq compile-command "make -j11 V=1")
 
 ;; Python
-(setq py-python-command "/usr/bin/python3")
+(setq py-python-command "/usr/bin/python3.8")
 (setq python-shell-completion-native-enable nil)
 
 ;; delete trailing whitespace?
